@@ -8,23 +8,15 @@ from typing import Literal
 
 import httpx
 
-from . import store
-
 API_URL = "https://www.googleapis.com/youtube/v3/search"
+
+# In-memory cache only — writing to the shared store risked wiping
+# clinical data via load-mutate-save races during concurrent requests.
+_CACHE: dict[str, dict] = {}
 
 
 def _cache_key(exercise: str, language: str) -> str:
     return f"{language}::{exercise.strip().lower()}"
-
-
-def _load_cache() -> dict:
-    return store.load().get("_video_cache", {})
-
-
-def _save_cache(cache: dict) -> None:
-    state = store.load()
-    state["_video_cache"] = cache
-    store.save(state)
 
 
 def fallback_search_url(exercise: str, language: Literal["es", "en"] = "es") -> str:
@@ -35,9 +27,8 @@ def fallback_search_url(exercise: str, language: Literal["es", "en"] = "es") -> 
 
 def resolve_video(exercise: str, language: Literal["es", "en"] = "es") -> dict:
     key = _cache_key(exercise, language)
-    cache = _load_cache()
-    if key in cache:
-        return cache[key]
+    if key in _CACHE:
+        return _CACHE[key]
 
     api_key = os.environ.get("YOUTUBE_API_KEY")
     search_url = fallback_search_url(exercise, language)
@@ -81,6 +72,5 @@ def resolve_video(exercise: str, language: Literal["es", "en"] = "es") -> dict:
                 "search_url": search_url, "cached": False,
                 "error": "youtube_api_failed"}
 
-    cache[key] = {**result, "cached": True}
-    _save_cache(cache)
+    _CACHE[key] = {**result, "cached": True}
     return result
