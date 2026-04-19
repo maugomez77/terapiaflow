@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import ai, demo, store
+from . import ai, demo, store, videos
 
 app = FastAPI(title="TerapiaFlow API", version="0.1.0")
 app.add_middleware(
@@ -57,7 +57,7 @@ def root():
         "description": "PT compliance & progress platform for Morelia",
         "endpoints": ["/patients", "/episodes", "/sessions", "/home-exercises",
                        "/claims", "/compliance", "/ai/soap", "/ai/home-exercises",
-                       "/ai/compliance", "/status", "/demo/seed"],
+                       "/ai/compliance", "/videos/resolve", "/status", "/demo/seed"],
     }
 
 
@@ -214,3 +214,8 @@ def ai_compliance(language: Literal["es", "en"] = "es"):
 @app.get("/compliance")
 def list_compliance():
     return store.load()["compliance_checks"]
+
+
+@app.get("/videos/resolve")
+def resolve_video(exercise: str, language: Literal["es", "en"] = "es"):
+    return videos.resolve_video(exercise, language=language)

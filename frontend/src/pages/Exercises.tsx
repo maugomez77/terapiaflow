@@ -2,12 +2,35 @@ import { useEffect, useState } from "react";
 import { api, type Patient, type HomeExercise } from "../api";
 import { useI18n } from "../i18n";
 
+type VideoInfo = {
+  video_id: string | null;
+  title: string;
+  channel: string;
+  url: string;
+  embed_url: string | null;
+  search_url: string;
+};
+
 export default function Exercises() {
   const { t, lang } = useI18n();
   const [pats, setPats] = useState<Patient[]>([]);
   const [list, setList] = useState<HomeExercise[]>([]);
   const [form, setForm] = useState({ patient_id: "", diagnosis: "", phase: "strength" });
   const [loading, setLoading] = useState(false);
+  const [videoModal, setVideoModal] = useState<{ exercise: string; lang: "es" | "en"; info: VideoInfo | null; loading: boolean } | null>(null);
+
+  const openVideo = async (exerciseName: string, exLang: string) => {
+    const wLang: "es" | "en" = exLang === "en" ? "en" : "es";
+    setVideoModal({ exercise: exerciseName, lang: wLang, info: null, loading: true });
+    try {
+      const r = await api.get<VideoInfo>("/videos/resolve", {
+        params: { exercise: exerciseName, language: wLang },
+      });
+      setVideoModal({ exercise: exerciseName, lang: wLang, info: r.data, loading: false });
+    } catch {
+      setVideoModal({ exercise: exerciseName, lang: wLang, info: null, loading: false });
+    }
+  };
 
   const refresh = async () => {
     const [p, e] = await Promise.all([
@@ -67,7 +90,14 @@ export default function Exercises() {
             {list.map((e) => (
               <tr key={e.id}>
                 <td>{names[e.patient_id] || e.patient_id}</td>
-                <td>{e.name}</td>
+                <td>
+                  <button
+                    className="video-btn"
+                    onClick={() => openVideo(e.name, e.language)}
+                    title={lang === "es" ? "Ver técnica" : "Watch form"}
+                  >▶</button>
+                  {e.name}
+                </td>
                 <td>{e.sets} × {e.reps}</td>
                 <td>{e.frequency_per_week}</td>
                 <td style={{ fontSize: 12, color: "var(--muted)" }}>{e.cues}</td>
@@ -76,6 +106,49 @@ export default function Exercises() {
           </tbody>
         </table>
       </div>
+
+      {videoModal && (
+        <div className="modal-backdrop" onClick={() => setVideoModal(null)}>
+          <div className="modal" onClick={(ev) => ev.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                  {lang === "es" ? "Técnica" : "Form"} · {videoModal.lang.toUpperCase()}
+                </div>
+                <h3 style={{ margin: 0, color: "var(--text)" }}>{videoModal.exercise}</h3>
+              </div>
+              <button className="modal-close" onClick={() => setVideoModal(null)}>×</button>
+            </div>
+            <div className="video-frame">
+              {videoModal.loading && <div className="video-loading">{t.common.loading}</div>}
+              {!videoModal.loading && videoModal.info?.embed_url && (
+                <iframe
+                  src={`${videoModal.info.embed_url}?rel=0&autoplay=1`}
+                  title={videoModal.info.title}
+                  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              )}
+              {!videoModal.loading && !videoModal.info?.embed_url && (
+                <div className="video-fallback">
+                  <p>
+                    {lang === "es"
+                      ? "YouTube API no configurado. Abrir búsqueda en YouTube:"
+                      : "YouTube API not configured. Open search on YouTube:"}
+                  </p>
+                  <a className="btn" href={videoModal.info?.search_url || "#"}
+                     target="_blank" rel="noreferrer">▶ YouTube</a>
+                </div>
+              )}
+            </div>
+            {videoModal.info?.channel && (
+              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
+                {videoModal.info.channel}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
